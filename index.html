@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Purple Hearts — Hastane SQL Antrenmanı</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/alasql/4.17.3/alasql.min.js"></script>
+<style>
+  :root, :root[data-theme="dark"]{
+    --bg: #140b1f;
+    --bg-panel: #1c1130;
+    --bg-card: #241938;
+    --bg-inset: #170e26;
+    --accent: #a855f7;
+    --accent-strong: #d8b4fe;
+    --accent-deep: #7c3aed;
+    --pulse: #37e6b0;
+    --error: #fb7185;
+    --text: #efe8fb;
+    --text-muted: #a996c7;
+    --border: #392a54;
+    --border-soft: #2c2044;
+    --radius: 10px;
+  }
+  :root[data-theme="light"]{
+    --bg: #f6f2fb;
+    --bg-panel: #ffffff;
+    --bg-card: #ffffff;
+    --bg-inset: #f1e8fa;
+    --accent: #8b2fe0;
+    --accent-strong: #6d21c4;
+    --accent-deep: #5b1aa3;
+    --pulse: #0f9a6b;
+    --error: #d6285a;
+    --text: #241a34;
+    --text-muted: #6c5c85;
+    --border: #ded0ee;
+    --border-soft: #eae0f7;
+  }
+  *{ box-sizing: border-box; }
+  html, body{ margin:0; padding:0; }
+  body{
+    background:
+      radial-gradient(ellipse 900px 500px at 15% -10%, rgba(168,85,247,0.16), transparent 60%),
+      radial-gradient(ellipse 700px 500px at 100% 0%, rgba(55,230,176,0.06), transparent 55%),
+      var(--bg);
+    color: var(--text);
+    font-family: 'IBM Plex Sans', system-ui, sans-serif;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    transition: background .2s ease, color .2s ease;
+  }
+  :root[data-theme="light"] body{
+    background: radial-gradient(ellipse 900px 500px at 15% -10%, rgba(139,47,224,0.07), transparent 60%), var(--bg);
+  }
+  ::selection{ background: var(--accent-deep); color: #fff; }
+  a{ color: var(--accent-strong); }
+
+  /* ---------- Header ---------- */
+  header{
+    padding: 26px clamp(16px,4vw,48px) 18px;
+    border-bottom: 1px solid var(--border-soft);
+    display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap;
+  }
+  .brand-mark{ display:flex; align-items:baseline; gap:14px; flex-wrap:wrap; }
+  h1{
+    font-family:'Fraunces', serif; font-weight:600; font-style: italic;
+    font-size: clamp(26px, 4vw, 36px); margin:0; letter-spacing:-0.01em; color: var(--text);
+  }
+  h1 .heart{ font-style: normal; }
+  .brand-sub{ color: var(--text-muted); font-size: 13.5px; max-width: 44ch; line-height:1.5; }
+  .header-stats{ display:flex; gap:18px; align-items:center; flex-wrap:wrap; }
+  .stat{ text-align:right; }
+  .stat .num{ font-family:'Fraunces', serif; font-size:24px; color: var(--pulse); line-height:1; }
+  .stat .lbl{ font-size:11px; color:var(--text-muted); margin-top:3px; }
+  .icon-btn{
+    background:none; border:1px solid var(--border); color:var(--text-muted);
+    font-family:'IBM Plex Sans'; font-size:12.5px; padding:7px 12px; border-radius:20px;
+    cursor:pointer; transition: all .15s ease; display:flex; align-items:center; gap:6px;
+  }
+  .icon-btn:hover{ border-color:var(--accent); color:var(--accent-strong); }
+  #resetBtn:hover{ border-color:var(--error); color:var(--error); }
+
+  /* ---------- Layout ---------- */
+  .shell{ display:grid; grid-template-columns: 270px 1fr; gap: 0; max-width: 1220px; margin: 0 auto; }
+  @media (max-width: 900px){ .shell{ grid-template-columns: 1fr; } }
+
+  /* ---------- Level rail ---------- */
+  .rail{ padding: 26px 10px 40px 26px; position: relative; }
+  .rail-line{ position:absolute; left: 32px; top: 30px; bottom: 40px; width:2px; background: linear-gradient(var(--border), var(--border-soft)); }
+  .rail-item{
+    position:relative; display:flex; align-items:flex-start; gap:12px;
+    padding: 10px 8px; margin-left: 2px; border-radius: 8px; cursor:pointer; user-select:none;
+    transition: background .15s ease;
+  }
+  .rail-item:hover{ background: rgba(168,85,247,0.08); }
+  .rail-item.locked{ cursor: default; opacity:.42; }
+  .rail-item.locked:hover{ background:none; }
+  .rail-dot{
+    width:15px; height:15px; border-radius:50%; flex:none; margin-top:2px;
+    border:2px solid var(--border); background: var(--bg-panel); position:relative; z-index:1;
+  }
+  .rail-item.done .rail-dot{ background: var(--pulse); border-color: var(--pulse); box-shadow:0 0 0 3px rgba(55,230,176,0.15); }
+  .rail-item.current .rail-dot{ background: var(--accent); border-color: var(--accent-strong); box-shadow:0 0 0 4px rgba(168,85,247,0.22); animation: pulse 1.8s ease-in-out infinite; }
+  @keyframes pulse{ 0%,100%{ box-shadow:0 0 0 4px rgba(168,85,247,0.22);} 50%{ box-shadow:0 0 0 8px rgba(168,85,247,0.08);} }
+  .rail-label{ font-size: 12.5px; line-height:1.35; }
+  .rail-label .lv{ display:block; font-size:10px; color:var(--text-muted); letter-spacing:.04em; margin-bottom:1px; }
+  .rail-label .lv-title{ display:block; font-weight:500; }
+  .rail-label .lv-concept{ display:block; font-size:11px; color:var(--text-muted); margin-top:2px; line-height:1.4; }
+  .rail-item.current .lv-title{ color: var(--accent-strong); font-weight:600; }
+  .rail-item.done .lv-title{ color: var(--text); }
+  .rail-item.locked .lv-title{ color: var(--text-muted); }
+
+  /* ---------- Main column ---------- */
+  main{ padding: 26px clamp(14px,3vw,36px) 60px; border-left: 1px solid var(--border-soft); }
+  @media (max-width:900px){ main{ border-left:none; } }
+
+  .task-card{ background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px clamp(16px,3vw,28px); margin-bottom: 18px; }
+  .task-eyebrow{ display:flex; align-items:center; gap:10px; margin-bottom:10px; flex-wrap:wrap; }
+  .chip{ font-size:11px; padding: 3px 9px; border-radius: 20px; background: var(--bg-inset); border:1px solid var(--border); color: var(--accent-strong); font-family:'IBM Plex Mono', monospace; }
+  .task-card h2{ font-family:'Fraunces', serif; font-weight:600; font-size: 20px; margin: 0 0 6px; color: var(--text); }
+  .concept-line{ font-size:12.5px; color: var(--text-muted); margin: 0 0 14px; font-style: italic; }
+  .task-desc{ color: var(--text); line-height:1.65; font-size:14.5px; margin: 0 0 14px; }
+  .task-desc code{ font-family:'IBM Plex Mono', monospace; background: var(--bg-inset); padding:1px 5px; border-radius:4px; font-size:.92em; }
+  .task-hint-toggle{ background:none; border:none; color:var(--text-muted); font-size:12.5px; cursor:pointer; padding:0; text-decoration: underline; text-decoration-color: var(--border); text-underline-offset:3px; }
+  .task-hint-toggle:hover{ color: var(--accent-strong); }
+  .hint-box{ margin-top:10px; padding:10px 14px; border-radius:8px; background: var(--bg-inset); border:1px dashed var(--border); font-size:13px; color: var(--text-muted); font-family:'IBM Plex Mono', monospace; display:none; line-height:1.6; }
+  .hint-box.show{ display:block; }
+
+  .editor-wrap{ background: var(--bg-panel); border:1px solid var(--border); border-radius: var(--radius); padding: 16px clamp(16px,3vw,28px) 20px; margin-bottom:18px; }
+  .editor-label{ display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:6px; }
+  .editor-label span{ font-size:12px; color:var(--text-muted); letter-spacing:.02em; }
+  textarea{
+    width:100%; min-height:100px; resize:vertical; background: var(--bg-inset); border:1px solid var(--border);
+    border-radius:8px; color: var(--pulse); font-family:'IBM Plex Mono', monospace; font-size:14px; line-height:1.6;
+    padding: 12px 14px; outline:none;
+  }
+  textarea:focus{ border-color: var(--accent); }
+  .editor-actions{ display:flex; gap:10px; margin-top:12px; align-items:center; flex-wrap:wrap; }
+  .btn{ font-family:'IBM Plex Sans'; font-weight:600; font-size:13.5px; letter-spacing:.01em; padding: 10px 18px; border-radius:8px; border:none; cursor:pointer; transition: transform .1s ease, opacity .15s ease; }
+  .btn:active{ transform: scale(.97); }
+  .btn-run{ background: linear-gradient(135deg, var(--accent), var(--accent-deep)); color:#fff; }
+  .btn-run:hover{ opacity:.92; }
+  .btn-next{ background: var(--pulse); color:#062d20; }
+  .btn-next:hover{ opacity:.9; }
+  .btn-ghost{ background:none; border:1px solid var(--border); color:var(--text-muted); }
+  .btn-ghost:hover{ color:var(--text); border-color:var(--accent); }
+
+  .feedback{ margin-top: 4px; padding: 12px 16px; border-radius:8px; font-size:13.5px; line-height:1.55; display:none; }
+  .feedback.show{ display:block; }
+  .feedback.ok{ background: rgba(55,230,176,0.09); border:1px solid rgba(55,230,176,0.35); color: var(--pulse); }
+  :root[data-theme="dark"] .feedback.ok{ color:#a9f5dd; }
+  .feedback.bad{ background: rgba(251,113,133,0.09); border:1px solid rgba(251,113,133,0.35); color: var(--error); }
+  :root[data-theme="dark"] .feedback.bad{ color:#ffb9c3; }
+  .feedback code{ font-family:'IBM Plex Mono', monospace; background: rgba(120,90,160,0.18); padding:1px 5px; border-radius:4px; }
+
+  .results-wrap{ margin-top: 16px; }
+  .results-title{ font-size:12px; color:var(--text-muted); margin-bottom:8px; letter-spacing:.02em; }
+  .table-scroll{ overflow-x:auto; border:1px solid var(--border); border-radius:8px; background: var(--bg-inset); }
+  table.result-table{ border-collapse: collapse; width:100%; font-family:'IBM Plex Mono', monospace; font-size:13px; }
+  table.result-table th{ text-align:left; padding: 9px 14px; background: var(--bg-card); color: var(--accent-strong); border-bottom:1px solid var(--border); white-space:nowrap; font-weight:600; }
+  table.result-table td{ padding: 8px 14px; border-bottom:1px solid var(--border-soft); color: var(--text); white-space:nowrap; }
+  table.result-table tr:last-child td{ border-bottom:none; }
+  table.result-table tr:hover td{ background: rgba(168,85,247,0.06); }
+  .empty-note{ padding:14px; color:var(--text-muted); font-size:13px; }
+
+  .data-toggle{
+    display:flex; align-items:center; justify-content:space-between; cursor:pointer;
+    padding: 14px clamp(16px,3vw,28px); background: var(--bg-panel); border:1px solid var(--border);
+    border-radius: var(--radius); font-size:13.5px; color: var(--text-muted); margin-bottom: 0;
+  }
+  .data-toggle:hover{ color: var(--text); }
+  .data-toggle .arrow{ transition: transform .2s ease; }
+  .data-toggle.open .arrow{ transform: rotate(180deg); }
+  .data-panel{ display:none; border:1px solid var(--border); border-top:none; border-radius: 0 0 var(--radius) var(--radius); background: var(--bg-panel); padding: 18px clamp(16px,3vw,28px) 22px; }
+  .data-panel.open{ display:block; }
+  .data-table-block{ margin-bottom: 20px; }
+  .data-table-block:last-child{ margin-bottom:0; }
+  .data-table-block h4{ font-family:'IBM Plex Mono', monospace; font-size:13px; color: var(--accent-strong); margin:0 0 8px; font-weight:600; }
+
+  .win-banner{ text-align:center; padding: 50px 20px; background: var(--bg-panel); border:1px solid var(--border); border-radius: var(--radius); }
+  .win-banner h2{ font-family:'Fraunces', serif; font-style: italic; font-size: 25px; color: var(--pulse); margin:0 0 10px; }
+  .win-banner p{ color:var(--text-muted); font-size:14px; }
+
+  footer{ text-align:center; color: var(--text-muted); font-size:12px; padding: 20px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand-mark">
+    <h1><span class="heart">💜</span> Purple Hearts</h1>
+    <div class="brand-sub" id="brandSub"></div>
+  </div>
+  <div class="header-stats">
+    <div class="stat"><div class="num" id="statLevel">1</div><div class="lbl" id="lblLevel">seviye</div></div>
+    <div class="stat"><div class="num" id="statDone">0<span style="color:var(--text-muted); font-size:14px;">/34</span></div><div class="lbl" id="lblDone">tamamlanan</div></div>
+    <button class="icon-btn" id="themeBtn"><span id="themeIcon">☀️</span><span id="themeLabel">Aydınlık</span></button>
+    <button class="icon-btn" id="langBtn" title="Language / Dil">🌐 <span id="langLabel">EN</span></button>
+    <button class="icon-btn" id="resetBtn">İlerlemeyi sıfırla</button>
+  </div>
+</header>
+
+<div class="shell">
+  <nav class="rail" id="rail"><div class="rail-line"></div></nav>
+
+  <main>
+    <div id="levelArea"></div>
+
+    <div class="data-toggle" id="dataToggle">
+      <span id="dataToggleText"></span>
+      <span class="arrow">▾</span>
+    </div>
+    <div class="data-panel" id="dataPanel"></div>
+  </main>
+</div>
+
+<footer id="footerText"></footer>
+
+<script>
+(function(){
+
+
+  /* ================= DİL / LANGUAGE ================= */
+  var LANG_KEY = 'purple_hearts_lang';
+  var I18N = {
+    tr: {
+      brandSub:'Hayali bir hastane veritabanı üzerinde, en basit sorgudan en zoruna doğru SQL pratiği.',
+      lblLevel:'seviye', lblDone:'tamamlanan', themeToLight:'Aydınlık', themeToDark:'Karanlık',
+      reset:'İlerlemeyi sıfırla', dataToggle:'🩺 Veritabanındaki tabloları ve örnek verileri göster',
+      footer:'Sorgular tarayıcında, alasql ile çalışır — hiçbir şey sunucuya gönderilmez.',
+      level:'Seviye', completedChip:'✓ tamamlandı', showHint:'İpucu göster', hideHint:'İpucunu gizle',
+      yourQuery:'SQL SORGUN', keys:'Enter ile satır atla, Ctrl+Enter ile çalıştır',
+      run:'Çalıştır', next:'Sonraki seviye →', clear:'Temizle',
+      result:'SONUÇ', resultOk:'SONUÇ — doğru ✓', resultBad:'SONUCUN (beklenenle eşleşmiyor)',
+      writeFirst:'Önce bir SQL sorgusu yaz.', notSelect:'Bu bir SELECT sorgusu olmalı, sonuç bir satır listesi döndürmeli.',
+      sqlError:'SQL hatası:', fixTry:'Sorguyu düzeltip tekrar dene.',
+      okMsg:'<b>Doğru!</b> Sorgun beklenen sonucu üretti. Sıradaki seviyeye geçebilirsin.',
+      badMsg:'<b>Henüz değil.</b> Sorgun hatasız çalıştı ama sonuç beklenenle eşleşmiyor. Görevi ve varsa AS takma ad ipucunu tekrar oku, sorguyu düzenleyip tekrar dene.',
+      empty:'Sorgu çalıştı ama sonuç boş döndü.',
+      winTitle:'💜 Nöbeti tamamladın',
+      winText:function(n){ return n + ' seviyenin tamamını başarıyla çözdün. İstersen sol taraftan istediğin seviyeye dönüp tekrar pratik yapabilirsin.'; },
+      confirmReset:'Tüm ilerleme silinecek ve 1. seviyeden başlayacaksın. Emin misin?'
+    },
+    en: {
+      brandSub:'SQL practice on an imaginary hospital database, from the simplest query to the hardest.',
+      lblLevel:'level', lblDone:'completed', themeToLight:'Light', themeToDark:'Dark',
+      reset:'Reset progress', dataToggle:'🩺 Show the database tables and sample data',
+      footer:'Queries run in your browser with alasql — nothing is sent to a server.',
+      level:'Level', completedChip:'✓ completed', showHint:'Show hint', hideHint:'Hide hint',
+      yourQuery:'YOUR SQL QUERY', keys:'Enter for a new line, Ctrl+Enter to run',
+      run:'Run', next:'Next level →', clear:'Clear',
+      result:'RESULT', resultOk:'RESULT — correct ✓', resultBad:'YOUR RESULT (does not match the expected one)',
+      writeFirst:'Write an SQL query first.', notSelect:'This must be a SELECT query that returns a list of rows.',
+      sqlError:'SQL error:', fixTry:'Fix the query and try again.',
+      okMsg:'<b>Correct!</b> Your query produced the expected result. You can move on to the next level.',
+      badMsg:'<b>Not yet.</b> Your query ran without errors but the result does not match the expected one. Re-read the task (and the AS alias note, if any), adjust the query and try again.',
+      empty:'The query ran but returned no rows.',
+      winTitle:'💜 You finished the shift',
+      winText:function(n){ return 'You solved all ' + n + ' levels. You can go back to any level from the left side and practice again.'; },
+      confirmReset:'All progress will be deleted and you will start again from level 1. Are you sure?'
+    }
+  };
+  var lang = null;
+  try{ lang = localStorage.getItem(LANG_KEY); }catch(e){}
+  if(lang !== 'tr' && lang !== 'en'){
+    lang = ((navigator.language || 'en').toLowerCase().indexOf('tr') === 0) ? 'tr' : 'en';
+  }
+  function t(key){ return I18N[lang][key]; }
+
+  /* ================= TEMA ================= */
+  var THEME_KEY = 'purple_hearts_theme';
+  function applyTheme(t){
+    document.documentElement.setAttribute('data-theme', t);
+    var icon = document.getElementById('themeIcon');
+    var label = document.getElementById('themeLabel');
+    if(t === 'light'){ icon.textContent = '🌙'; label.textContent = I18N[lang].themeToDark; }
+    else { icon.textContent = '☀️'; label.textContent = I18N[lang].themeToLight; }
+  }
+  var savedTheme = null;
+  try{ savedTheme = localStorage.getItem(THEME_KEY); }catch(e){}
+  if(!savedTheme){
+    savedTheme = (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+  }
+  applyTheme(savedTheme);
+  document.getElementById('themeBtn').addEventListener('click', function(){
+    var cur = document.documentElement.getAttribute('data-theme');
+    var next = cur === 'light' ? 'dark' : 'light';
+    applyTheme(next);
+    try{ localStorage.setItem(THEME_KEY, next); }catch(e){}
+  });
+
+  /* ================= VERİ SETİ ================= */
+  /* Dil değişince tablolar YENİ dizilerle yeniden tanımlanır (alasql, JOIN için eski diziyi önbelleğe aldığından
+     dizileri yerinde değiştirmek yanlış sonuç verir) ve sorgu önbelleği temizlenir. */
+  var DB = {};
+  function setTable(name, items){ DB[name] = items; alasql.tables[name] = { data: items }; }
+
+  function setData(l){
+    var en = (l === 'en');
+    var depN = en ? ['Cardiology','Neurology','Orthopedics','Pediatrics','Internal Medicine','General Surgery','Ophthalmology','ENT','Emergency']
+                  : ['Kardiyoloji','Nöroloji','Ortopedi','Pediatri','Dahiliye','Genel Cerrahi','Göz Hastalıkları','KBB','Acil Servis'];
+    var docT = en ? ['Cardiologist','Neurologist','Orthopedist','Pediatrician','Cardiologist','Internist','General Surgeon','Ophthalmologist','Neurologist','ENT Specialist']
+                  : ['Kardiyolog','Nörolog','Ortopedist','Pediatrist','Kardiyolog','Dahiliye Uzmanı','Genel Cerrah','Göz Doktoru','Nörolog','KBB Uzmanı'];
+    var shiftDay = en ? 'Day' : 'Gündüz', shiftNight = en ? 'Night' : 'Gece';
+    var disN = en ? ['Hypertension','Migraine','Fracture','Flu','Diabetes','Cataract','Sinusitis','Appendicitis','Asthma','Arrhythmia']
+                  : ['Hipertansiyon','Migren','Kırık','Grip','Diyabet','Katarakt','Sinüzit','Apandisit','Astım','Aritmi'];
+    var disC = en ? ['Cardiovascular','Neurological','Orthopedic','Respiratory','Metabolic','Eye','ENT','Surgical','Respiratory','Cardiovascular']
+                  : ['Kardiyovasküler','Nörolojik','Ortopedik','Solunum','Metabolik','Göz','KBB','Cerrahi','Solunum','Kardiyovasküler'];
+    var M = en ? 'M' : 'E', F = en ? 'F' : 'K';
+
+    setTable('departments', depN.map(function(n, i){ return {id:i+1, name:n}; }));
+
+    var docBase = [['Ahmet Yılmaz',1,12],['Elif Kaya',2,8],['Mehmet Demir',3,15],['Zeynep Şahin',4,5],['Burak Aydın',1,20],
+                   ['Selin Çelik',5,9],['Emre Koç',6,18],['Ayşe Arslan',7,6],['Can Öztürk',2,11],['Deniz Yıldız',8,4]];
+    setTable('doctors', docBase.map(function(d, i){ return {id:i+1, name:d[0], department_id:d[1], title:docT[i], years_experience:d[2]}; }));
+
+    var nurseBase = [['Fatma Aksoy',1,shiftDay],['Hakan Polat',3,shiftNight],['Büşra Er',4,shiftDay],['Onur Kurt',5,shiftNight],
+                     ['Gizem Avcı',1,shiftNight],['Murat Şen',6,shiftDay],['Ece Yalçın',2,shiftDay]];
+    setTable('nurses', nurseBase.map(function(n, i){ return {id:i+1, name:n[0], department_id:n[1], shift:n[2]}; }));
+
+    setTable('diseases', disN.map(function(n, i){ return {id:i+1, name:n, category:disC[i]}; }));
+
+    var patBase = [['Hasan Güneş',45,M,1,1,1],['Ayla Demirtaş',32,F,2,2,2],['Kemal Aydın',67,M,3,3,3],['Nurcan Bal',8,F,4,4,4],
+                   ['Serkan Uçar',55,M,1,5,10],['Pınar Kaplan',29,F,5,6,5],['İbrahim Tan',50,M,6,7,8],['Melis Doğan',60,F,7,8,6],
+                   ['Yusuf Er',38,M,2,9,2],['Ceren Bulut',15,F,8,10,7],['Osman Kaya',70,M,1,1,10],['Derya Şimşek',42,F,5,6,5]];
+    setTable('patients', patBase.map(function(r, i){ return {id:i+1, name:r[0], age:r[1], gender:r[2], department_id:r[3], doctor_id:r[4], disease_id:r[5]}; }));
+
+    try{ alasql.databases.alasql.sqlCache = {}; alasql.databases.alasql.sqlCacheSize = 0; }catch(e){}
+  }
+  setData(lang);
+
+  /* Sorgulardaki metin değerleri dile göre değişir: {F}, {RESP}, ... */
+  var LITS = {
+    tr: { F:'K', RESP:'Solunum', CHILD:'Çocuk', ADULT:'Yetişkin', ELDER:'Yaşlı', DOC:'Doktor', NURSE:'Hemşire' },
+    en: { F:'F', RESP:'Respiratory', CHILD:'Child', ADULT:'Adult', ELDER:'Elderly', DOC:'Doctor', NURSE:'Nurse' }
+  };
+  function lit(str){ return str.replace(/\{(\w+)\}/g, function(m, k){ return LITS[lang][k] !== undefined ? LITS[lang][k] : m; }); }
+
+  var SCHEMA = {
+    departments: ['id','name'],
+    doctors: ['id','name','department_id','title','years_experience'],
+    nurses: ['id','name','department_id','shift'],
+    diseases: ['id','name','category'],
+    patients: ['id','name','age','gender','department_id','doctor_id','disease_id']
+  };
+
+  /* ================= SEVİYELER =================
+     Not: birden fazla tablo JOIN edilen seviyelerde, aynı isimli sütunların (ör. iki tablonun da "name" sütunu)
+     birbirinin üzerine yazmaması için AS ile takma ad vermek gerekir — bu hem doğru öğretim hem de teknik olarak zorunlu. */
+  var levels = [
+    { title:'Tümünü Gör', concept:'SELECT * ile bir tablonun tüm sütunlarını görürsün.',
+      task:'<b>departments</b> tablosundaki tüm bölümleri, tüm sütunlarıyla listele.',
+      hint:'SELECT * FROM departments;', ref:'SELECT * FROM departments', ordered:false },
+
+    { title:'Sütun Seçmek', concept:'İstediğin sütunları virgülle ayırarak seçersin.',
+      task:'<b>doctors</b> tablosundan sadece doktorların isimlerini (<code>name</code>) listele.',
+      hint:'SELECT name FROM doctors;', ref:'SELECT name FROM doctors', ordered:false },
+
+    { title:'Sayısal Filtre', concept:'WHERE, koşulu sağlamayan satırları eler.',
+      task:'10 yıldan fazla (<code>years_experience &gt; 10</code>) deneyimi olan doktorların isimlerini listele.',
+      hint:'SELECT name FROM doctors WHERE years_experience > 10;', ref:'SELECT name FROM doctors WHERE years_experience > 10', ordered:false },
+
+    { title:'Metin Filtresi', concept:'Metin değerlerini tek tırnak içinde karşılaştırırsın.',
+      task:'Cinsiyeti kadın olan (<code>gender = \'K\'</code>) hastaların isim ve yaşlarını listele.',
+      hint:"SELECT name, age FROM patients WHERE gender = '{F}';", ref:"SELECT name, age FROM patients WHERE gender = '{F}'", ordered:false },
+
+    { title:'VE Koşulu (AND)', concept:'AND, iki koşulun da aynı anda doğru olmasını ister.',
+      task:'8 yıldan fazla deneyimi <b>olan ve</b> Kardiyoloji bölümünde (<code>department_id = 1</code>) çalışan doktorları listele.',
+      hint:'SELECT name FROM doctors WHERE years_experience > 8 AND department_id = 1;', ref:'SELECT name FROM doctors WHERE years_experience > 8 AND department_id = 1', ordered:false },
+
+    { title:'VEYA Koşulu (OR)', concept:'OR, koşullardan en az birinin doğru olmasını yeterli sayar.',
+      task:'Kardiyoloji (1) <b>veya</b> Nöroloji (2) bölümündeki hastaların isimlerini listele.',
+      hint:'SELECT name FROM patients WHERE department_id = 1 OR department_id = 2;', ref:'SELECT name FROM patients WHERE department_id = 1 OR department_id = 2', ordered:false },
+
+    { title:'Liste İçinde Arama (IN)', concept:'IN, bir değerin verdiğin listede olup olmadığını kontrol eder — art arda OR yazmaktan kurtarır.',
+      task:'Hastalığı Hipertansiyon (1) veya Aritmi (10) olan, yani <code>disease_id IN (1, 10)</code> olan hastaların isimlerini listele.',
+      hint:'SELECT name FROM patients WHERE disease_id IN (1, 10);', ref:'SELECT name FROM patients WHERE disease_id IN (1, 10)', ordered:false },
+
+    { title:'Aralık (BETWEEN)', concept:'BETWEEN, iki değer arasındaki (her iki uç dahil) satırları seçer.',
+      task:'Yaşı 30 ile 50 arasında (dahil) olan hastaların isim ve yaşlarını listele.',
+      hint:'SELECT name, age FROM patients WHERE age BETWEEN 30 AND 50;', ref:'SELECT name, age FROM patients WHERE age BETWEEN 30 AND 50', ordered:false },
+
+    { title:'Kalıp Arama (LIKE)', concept:"LIKE ve % joker karakteriyle metin kalıpları ararsın; 'A%' A ile başlayan demektir.",
+      task:'İsmi "A" harfiyle başlayan doktorları listele.',
+      hint:"SELECT name FROM doctors WHERE name LIKE 'A%';", ref:"SELECT name FROM doctors WHERE name LIKE 'A%'", ordered:false },
+
+    { title:'Tekrarları Kaldırmak (DISTINCT)', concept:'DISTINCT, aynı değerleri tekrar tekrar göstermek yerine bir kez gösterir.',
+      task:'Hastaların bulunduğu, <b>tekrar etmeyen</b> bölüm id\'lerini listele.',
+      hint:'SELECT DISTINCT department_id FROM patients;', ref:'SELECT DISTINCT department_id FROM patients', ordered:false },
+
+    { title:'Çoklu Sıralama', concept:'ORDER BY\'a birden fazla sütun verirsen, önce ilkine göre sıralar, eşitlikte ikinciye bakar.',
+      task:'Hastaları önce bölüm id\'sine göre <b>artan</b>, aynı bölüm içinde ise yaşa göre <b>azalan</b> sırada listele (isim, bölüm id, yaş).',
+      hint:'SELECT name, department_id, age FROM patients ORDER BY department_id ASC, age DESC;', ref:'SELECT name, department_id, age FROM patients ORDER BY department_id ASC, age DESC', ordered:true },
+
+    { title:'Sonucu Sınırlamak (LIMIT)', concept:'LIMIT, sıralanmış sonuçtan sadece ilk N satırı getirir.',
+      task:'En yaşlı <b>3</b> hastanın ismini ve yaşını listele.',
+      hint:'SELECT name, age FROM patients ORDER BY age DESC LIMIT 3;', ref:'SELECT name, age FROM patients ORDER BY age DESC LIMIT 3', ordered:true },
+
+    { title:'Sayma (COUNT)', concept:'COUNT(*), koşulu sağlayan satır sayısını hesaplar.',
+      task:'Kardiyoloji bölümünde (<code>department_id = 1</code>) çalışan doktor <b>sayısını</b> hesapla.',
+      hint:'SELECT COUNT(*) FROM doctors WHERE department_id = 1;', ref:'SELECT COUNT(*) FROM doctors WHERE department_id = 1', ordered:false },
+
+    { title:'Ortalama (AVG)', concept:'AVG, bir sayısal sütunun ortalamasını hesaplar.',
+      task:'Doktorların ortalama deneyim yılını (<code>years_experience</code>) hesapla.',
+      hint:'SELECT AVG(years_experience) FROM doctors;', ref:'SELECT AVG(years_experience) FROM doctors', ordered:false },
+
+    { title:'En Büyük Değer (MAX)', concept:'MAX/MIN, bir sütundaki en büyük veya en küçük değeri bulur.',
+      task:'Hastanedeki en yaşlı hastanın yaşını bul.',
+      hint:'SELECT MAX(age) FROM patients;', ref:'SELECT MAX(age) FROM patients', ordered:false },
+
+    { title:'Gruplama (GROUP BY)', concept:'GROUP BY, satırları aynı değere göre gruplayıp her grup için ayrı bir hesap (ör. COUNT) çıkarır.',
+      task:'Her bölümdeki doktor sayısını göster: bölüm id\'si ve o bölümdeki doktor sayısı (<code>AS sayi</code>) yan yana.',
+      hint:'SELECT department_id, COUNT(*) AS sayi FROM doctors GROUP BY department_id;', ref:'SELECT department_id, COUNT(*) AS sayi FROM doctors GROUP BY department_id', ordered:false },
+
+    { title:'Grupları Filtrelemek (HAVING)', concept:'WHERE gruplamadan önce, HAVING ise gruplamadan sonra filtreler — bu yüzden COUNT gibi bir hesaba göre filtrelemek istediğinde HAVING kullanılır.',
+      task:'Birden fazla hastası olan (hasta sayısı 1\'den büyük) bölümlerin id\'sini ve hasta sayısını (<code>AS sayi</code>) göster.',
+      hint:'SELECT department_id, COUNT(*) AS sayi FROM patients GROUP BY department_id HAVING COUNT(*) > 1;', ref:'SELECT department_id, COUNT(*) AS sayi FROM patients GROUP BY department_id HAVING COUNT(*) > 1', ordered:false },
+
+    { title:'Tabloları Birleştirmek (JOIN)', concept:'JOIN, iki tabloyu ortak bir sütun üzerinden (burada department_id = id) birleştirir. İki tablonun da name sütunu olduğu için karışmaması için AS ile takma ad verilir.',
+      task:'Doktorların isimlerini, çalıştıkları <b>bölümün adıyla</b> birlikte göster. <code>doctors.name AS doktor</code> ve <code>departments.name AS bolum</code> gibi takma adlar kullan.',
+      hint:'SELECT doctors.name AS doktor, departments.name AS bolum FROM doctors JOIN departments ON doctors.department_id = departments.id;',
+      ref:'SELECT doctors.name AS doktor, departments.name AS bolum FROM doctors JOIN departments ON doctors.department_id = departments.id', ordered:false },
+
+    { title:'JOIN + WHERE', concept:'Birleştirilmiş sonucu, normal bir tablo gibi WHERE ile filtreleyebilirsin.',
+      task:'"Solunum" kategorisindeki hastalıklara sahip hastaların isimlerini ve hastalık adlarını göster. <code>patients.name AS hasta</code>, <code>diseases.name AS hastalik</code> kullan.',
+      hint:"SELECT patients.name AS hasta, diseases.name AS hastalik FROM patients JOIN diseases ON patients.disease_id = diseases.id WHERE diseases.category = '{RESP}';",
+      ref:"SELECT patients.name AS hasta, diseases.name AS hastalik FROM patients JOIN diseases ON patients.disease_id = diseases.id WHERE diseases.category = '{RESP}'", ordered:false },
+
+    { title:'Üç Tabloyu Birleştirmek', concept:'Art arda JOIN ekleyerek üç veya daha fazla tabloyu aynı sorguda birleştirebilirsin.',
+      task:'Her hastanın adını, doktorunun adını ve bölümün adını aynı satırda göster. <code>hasta</code>, <code>doktor</code>, <code>bolum</code> takma adlarını kullan.',
+      hint:'SELECT patients.name AS hasta, doctors.name AS doktor, departments.name AS bolum FROM patients JOIN doctors ON patients.doctor_id = doctors.id JOIN departments ON patients.department_id = departments.id;',
+      ref:'SELECT patients.name AS hasta, doctors.name AS doktor, departments.name AS bolum FROM patients JOIN doctors ON patients.doctor_id = doctors.id JOIN departments ON patients.department_id = departments.id', ordered:false },
+
+    { title:'Eksik Eşleşmeler (LEFT JOIN)', concept:'LEFT JOIN, sağdaki tabloda eşleşme olmasa bile soldaki tüm satırları korur; eşleşmeyen yerler boş (NULL) kalır. Az önce eklenen "Acil Servis" bölümünün hiç doktoru yok — bunu görebilmek için LEFT JOIN gerekir.',
+      task:'Tüm bölümleri, varsa çalışan doktor isimleriyle birlikte listele; doktoru olmayan bölümler de sonuçtan <b>düşmesin</b>. <code>departments.name AS bolum</code>, <code>doctors.name AS doktor</code> kullan.',
+      hint:'SELECT departments.name AS bolum, doctors.name AS doktor FROM departments LEFT JOIN doctors ON departments.id = doctors.department_id;',
+      ref:'SELECT departments.name AS bolum, doctors.name AS doktor FROM departments LEFT JOIN doctors ON departments.id = doctors.department_id', ordered:false },
+
+    { title:'NULL Kontrolü', concept:'IS NULL, bir LEFT JOIN sonrası eşleşmesi olmayan (boş kalan) satırları yakalamanı sağlar. = NULL değil, IS NULL yazılır.',
+      task:'Hiç doktoru <b>olmayan</b> bölümü bul (LEFT JOIN + <code>doctors.id IS NULL</code>).',
+      hint:'SELECT departments.name AS bolum FROM departments LEFT JOIN doctors ON departments.id = doctors.department_id WHERE doctors.id IS NULL;',
+      ref:'SELECT departments.name AS bolum FROM departments LEFT JOIN doctors ON departments.id = doctors.department_id WHERE doctors.id IS NULL', ordered:false },
+
+    { title:'Alt Sorgu (Subquery + IN)', concept:'Parantez içindeki bir SELECT, ana sorgunun WHERE koşulunda bir liste gibi kullanılabilir.',
+      task:'"Aritmi" hastalığına (<code>disease_id = 10</code>) sahip hastalara bakan doktorların isimlerini, bir <b>alt sorgu</b> kullanarak bul.',
+      hint:'SELECT name FROM doctors WHERE id IN (SELECT doctor_id FROM patients WHERE disease_id = 10);',
+      ref:'SELECT name FROM doctors WHERE id IN (SELECT doctor_id FROM patients WHERE disease_id = 10)', ordered:false },
+
+    { title:'Alt Sorgu (Karşılaştırma)', concept:'Tek bir değer (ör. ortalama) döndüren bir alt sorguyu, WHERE içinde doğrudan karşılaştırmada kullanabilirsin.',
+      task:'Yaşı, <b>tüm hastaların ortalama yaşından</b> büyük olan hastaların isim ve yaşlarını listele.',
+      hint:'SELECT name, age FROM patients WHERE age > (SELECT AVG(age) FROM patients);',
+      ref:'SELECT name, age FROM patients WHERE age > (SELECT AVG(age) FROM patients)', ordered:false },
+
+    { title:'Koşullu Etiketleme (CASE WHEN)', concept:'CASE WHEN, her satır için ayrı ayrı koşul kontrol edip yeni bir sütun üretir — bir çeşit satır bazlı if/else.',
+      task:'Her hasta için isim, yaş ve bir <code>yas_grubu</code> sütunu göster: 18 altı "Çocuk", 18-64 arası "Yetişkin", 65 ve üzeri "Yaşlı".',
+      hint:"SELECT name, age, CASE WHEN age < 18 THEN '{CHILD}' WHEN age < 65 THEN '{ADULT}' ELSE '{ELDER}' END AS yas_grubu FROM patients;",
+      ref:"SELECT name, age, CASE WHEN age < 18 THEN '{CHILD}' WHEN age < 65 THEN '{ADULT}' ELSE '{ELDER}' END AS yas_grubu FROM patients", ordered:false },
+
+    { title:'Eşit Değil (<>)', concept:'<> (bazı yerlerde !=), "eşit değil" demektir; bir koşulu tersine çevirmenin en basit yolu.',
+      task:'Kardiyoloji bölümünde <b>çalışmayan</b> (<code>department_id &lt;&gt; 1</code>) doktorların isimlerini listele.',
+      hint:'SELECT name FROM doctors WHERE department_id <> 1;', ref:'SELECT name FROM doctors WHERE department_id <> 1', ordered:false },
+
+    { title:'Listede Olmayanlar (NOT IN)', concept:'NOT IN, IN\'in tam tersidir — verdiğin listedeki değerlerin dışında kalan satırları seçer.',
+      task:'Grip (4) veya Astım (9) hastalığı <b>olmayan</b> hastaların isimlerini listele (<code>NOT IN</code> kullan).',
+      hint:'SELECT name FROM patients WHERE disease_id NOT IN (4, 9);', ref:'SELECT name FROM patients WHERE disease_id NOT IN (4, 9)', ordered:false },
+
+    { title:'Metin Fonksiyonu (UPPER)', concept:'UPPER metni büyük harfe, LOWER küçük harfe çevirir — genelde arama/karşılaştırmayı kolaylaştırmak için kullanılır.',
+      task:'Bölüm isimlerini <b>büyük harfle</b> göster. Sütuna <code>AS bolum_buyuk</code> takma adını ver.',
+      hint:'SELECT UPPER(name) AS bolum_buyuk FROM departments;', ref:'SELECT UPPER(name) AS bolum_buyuk FROM departments', ordered:false },
+
+    { title:'Metin Birleştirme', concept:"|| (veya bazı lehçelerde +), iki metni yan yana ekleyerek tek bir metin üretir.",
+      task:'Her doktor için isim ve unvanını <code>"İsim - Unvan"</code> biçiminde tek sütunda birleştir (<code>AS doktor_bilgisi</code>).',
+      hint:"SELECT name || ' - ' || title AS doktor_bilgisi FROM doctors;", ref:"SELECT name || ' - ' || title AS doktor_bilgisi FROM doctors", ordered:false },
+
+    { title:'Çoklu Sütunla Gruplama', concept:'GROUP BY\'a birden fazla sütun verirsen, her sütun kombinasyonu ayrı bir grup olur.',
+      task:'Her bölüm ve cinsiyet <b>kombinasyonu</b> için hasta sayısını göster (<code>department_id, gender</code>\'a göre grupla, <code>AS sayi</code>).',
+      hint:'SELECT department_id, gender, COUNT(*) AS sayi FROM patients GROUP BY department_id, gender;', ref:'SELECT department_id, gender, COUNT(*) AS sayi FROM patients GROUP BY department_id, gender', ordered:false },
+
+    { title:'Varlık Kontrolü (EXISTS)', concept:'EXISTS, alt sorgu en az bir satır döndürüyorsa doğru sayılır — "bu satır için eşleşen bir şey var mı?" diye sorar.',
+      task:'En az bir hastası <b>olan</b> bölümlerin isimlerini, <code>EXISTS</code> kullanarak bul.',
+      hint:'SELECT name FROM departments d WHERE EXISTS (SELECT 1 FROM patients p WHERE p.department_id = d.id);',
+      ref:'SELECT name FROM departments d WHERE EXISTS (SELECT 1 FROM patients p WHERE p.department_id = d.id)', ordered:false },
+
+    { title:'Yokluk Kontrolü (NOT EXISTS)', concept:'NOT EXISTS, EXISTS\'in tersidir. Aynı "hiç doktoru olmayan bölüm" sorusunu, daha önceki LEFT JOIN + IS NULL yerine bu kez farklı bir yöntemle çöz.',
+      task:'Hiç doktoru <b>olmayan</b> bölümü, bu kez <code>NOT EXISTS</code> kullanarak bul (Seviye 21-22\'deki LEFT JOIN yöntemi yerine).',
+      hint:'SELECT name FROM departments d WHERE NOT EXISTS (SELECT 1 FROM doctors doc WHERE doc.department_id = d.id);',
+      ref:'SELECT name FROM departments d WHERE NOT EXISTS (SELECT 1 FROM doctors doc WHERE doc.department_id = d.id)', ordered:false },
+
+    { title:'Birleştirme (UNION)', concept:'UNION, iki ayrı SELECT sonucunu alt alta tek bir listede birleştirir (iki sorgunun sütun sayısı eşit olmalı).',
+      task:'Doktorların ve hemşirelerin isimlerini <b>tek bir listede</b> birleştir; ikinci sütun doktorlar için <code>\'Doktor\'</code>, hemşireler için <code>\'Hemşire\'</code> yazsın (<code>AS unvan</code>).',
+      hint:"SELECT name, '{DOC}' AS unvan FROM doctors UNION SELECT name, '{NURSE}' AS unvan FROM nurses;",
+      ref:"SELECT name, '{DOC}' AS unvan FROM doctors UNION SELECT name, '{NURSE}' AS unvan FROM nurses", ordered:false },
+
+    { title:'Final: Hepsi Bir Arada', concept:'Gerçek dünyadaki sorguların çoğu JOIN, GROUP BY ve ORDER BY\'ı aynı anda kullanır — bu son seviye hepsini bir araya getiriyor.',
+      task:'Her bölümün adını ve o bölümdeki hasta sayısını (<code>AS hasta_sayisi</code>) hesapla; sonucu hasta sayısı <b>en çoktan en aza</b> sırala; hasta sayısı eşit olanları bölüm adına göre <b>A-Z</b> sırala (<code>AS bolum</code> takma adını da ver).',
+      hint:'SELECT departments.name AS bolum, COUNT(*) AS hasta_sayisi FROM patients JOIN departments ON patients.department_id = departments.id GROUP BY departments.name ORDER BY hasta_sayisi DESC, bolum ASC;',
+      ref:'SELECT departments.name AS bolum, COUNT(*) AS hasta_sayisi FROM patients JOIN departments ON patients.department_id = departments.id GROUP BY departments.name ORDER BY hasta_sayisi DESC, bolum ASC', ordered:true }
+  ];
+
+
+  /* ================= İNGİLİZCE SEVİYE METİNLERİ ================= */
+  var LEVELS_EN = [
+    { title:'See Everything', concept:'SELECT * shows all columns of a table.',
+      task:'List all departments from the <b>departments</b> table with all their columns.' },
+    { title:'Choosing Columns', concept:'You pick the columns you want, separated by commas.',
+      task:'From the <b>doctors</b> table, list only the doctors\' names (<code>name</code>).' },
+    { title:'Numeric Filter', concept:'WHERE removes the rows that do not meet the condition.',
+      task:'List the names of doctors with more than 10 years of experience (<code>years_experience &gt; 10</code>).' },
+    { title:'Text Filter', concept:'Text values are compared inside single quotes.',
+      task:'List the name and age of female patients (<code>gender = \'F\'</code>; F = female, M = male).' },
+    { title:'AND Condition', concept:'AND requires both conditions to be true at the same time.',
+      task:'List doctors who have more than 8 years of experience <b>and</b> work in Cardiology (<code>department_id = 1</code>).' },
+    { title:'OR Condition', concept:'OR is satisfied when at least one of the conditions is true.',
+      task:'List the names of patients in Cardiology (1) <b>or</b> Neurology (2).' },
+    { title:'Search in a List (IN)', concept:'IN checks whether a value is in the list you give — it saves you from chaining many ORs.',
+      task:'List the names of patients whose disease is Hypertension (1) or Arrhythmia (10), i.e. <code>disease_id IN (1, 10)</code>.' },
+    { title:'Range (BETWEEN)', concept:'BETWEEN selects rows between two values (both ends included).',
+      task:'List the name and age of patients aged between 30 and 50 (inclusive).' },
+    { title:'Pattern Search (LIKE)', concept:'With LIKE and the % wildcard you search text patterns; \'A%\' means "starts with A".',
+      task:'List doctors whose name starts with the letter "A".' },
+    { title:'Removing Duplicates (DISTINCT)', concept:'DISTINCT shows each value once instead of repeating it.',
+      task:'List the <b>unique</b> department ids that have patients.' },
+    { title:'Multi-column Sorting', concept:'If you give ORDER BY several columns, it sorts by the first and uses the next to break ties.',
+      task:'List patients sorted by department id <b>ascending</b>, and within the same department by age <b>descending</b> (name, department id, age).' },
+    { title:'Limiting Results (LIMIT)', concept:'LIMIT returns only the first N rows of the sorted result.',
+      task:'List the name and age of the <b>3</b> oldest patients.' },
+    { title:'Counting (COUNT)', concept:'COUNT(*) calculates the number of rows that meet the condition.',
+      task:'Calculate the <b>number</b> of doctors working in Cardiology (<code>department_id = 1</code>).' },
+    { title:'Average (AVG)', concept:'AVG calculates the average of a numeric column.',
+      task:'Calculate the average years of experience (<code>years_experience</code>) of the doctors.' },
+    { title:'Largest Value (MAX)', concept:'MAX/MIN finds the largest or smallest value in a column.',
+      task:'Find the age of the oldest patient in the hospital.' },
+    { title:'Grouping (GROUP BY)', concept:'GROUP BY groups rows with the same value and computes a separate result (e.g. COUNT) for each group.',
+      task:'Show the number of doctors in each department: the department id and the doctor count (<code>AS cnt</code>) side by side.' },
+    { title:'Filtering Groups (HAVING)', concept:'WHERE filters before grouping, HAVING after — so use HAVING when you want to filter on a calculation like COUNT.',
+      task:'Show the id and the patient count (<code>AS cnt</code>) of departments that have more than one patient.' },
+    { title:'Joining Tables (JOIN)', concept:'JOIN combines two tables over a common column (here department_id = id). Since both tables have a name column, you give them aliases with AS so they do not overwrite each other.',
+      task:'Show the doctors\' names together with the <b>name of their department</b>. Use aliases like <code>doctors.name AS doctor</code> and <code>departments.name AS department</code>.' },
+    { title:'JOIN + WHERE', concept:'You can filter a joined result with WHERE just like a normal table.',
+      task:'Show the names of patients who have a disease in the "Respiratory" category (<code>category = \'Respiratory\'</code>), along with the disease name. Use <code>patients.name AS patient</code> and <code>diseases.name AS disease</code>.' },
+    { title:'Joining Three Tables', concept:'By chaining JOINs you can combine three or more tables in one query.',
+      task:'Show each patient\'s name, their doctor\'s name and the department name on the same row. Use the aliases <code>patient</code>, <code>doctor</code> and <code>department</code>.' },
+    { title:'Missing Matches (LEFT JOIN)', concept:'LEFT JOIN keeps all rows of the left table even when there is no match on the right; unmatched spots become NULL. The "Emergency" department has no doctors — you need LEFT JOIN to see it.',
+      task:'List all departments with their doctors\' names if any; departments without doctors must <b>not</b> drop out of the result. Use <code>departments.name AS department</code> and <code>doctors.name AS doctor</code>.' },
+    { title:'NULL Check', concept:'IS NULL lets you catch rows with no match (left empty) after a LEFT JOIN. You write IS NULL, not = NULL.',
+      task:'Find the department that has <b>no</b> doctors (LEFT JOIN + <code>doctors.id IS NULL</code>).' },
+    { title:'Subquery (IN)', concept:'A SELECT in parentheses can be used like a list in the WHERE condition of the main query.',
+      task:'Find the names of doctors who treat patients with "Arrhythmia" (<code>disease_id = 10</code>), using a <b>subquery</b>.' },
+    { title:'Subquery (Comparison)', concept:'A subquery that returns a single value (e.g. an average) can be used directly in a comparison inside WHERE.',
+      task:'List the name and age of patients who are older than the <b>average age of all patients</b>.' },
+    { title:'Conditional Labels (CASE WHEN)', concept:'CASE WHEN checks conditions row by row and produces a new column — a kind of row-wise if/else.',
+      task:'For each patient show name, age and an <code>age_group</code> column: under 18 "Child", 18-64 "Adult", 65 and over "Elderly".' },
+    { title:'Not Equal (<>)', concept:'<> (or != in some dialects) means "not equal"; the simplest way to invert a condition.',
+      task:'List the names of doctors who do <b>not</b> work in Cardiology (<code>department_id &lt;&gt; 1</code>).' },
+    { title:'Not in a List (NOT IN)', concept:'NOT IN is the exact opposite of IN — it selects rows outside the list you give.',
+      task:'List the names of patients who do <b>not</b> have Flu (4) or Asthma (9) (use <code>NOT IN</code>).' },
+    { title:'Text Function (UPPER)', concept:'UPPER converts text to uppercase, LOWER to lowercase — often used to make searching and comparing easier.',
+      task:'Show department names in <b>uppercase</b>. Give the column an alias such as <code>AS dept_upper</code>.' },
+    { title:'Joining Text', concept:'|| (or + in some dialects) puts two texts side by side to produce one text.',
+      task:'For each doctor, combine name and title into one column in the form <code>"Name - Title"</code> (<code>AS doctor_info</code>).' },
+    { title:'Grouping by Multiple Columns', concept:'If you give GROUP BY more than one column, each combination of those columns becomes a separate group.',
+      task:'Show the number of patients for each department and gender <b>combination</b> (group by <code>department_id, gender</code>, <code>AS cnt</code>).' },
+    { title:'Existence Check (EXISTS)', concept:'EXISTS is true if the subquery returns at least one row — it asks "is there any match for this row?".',
+      task:'Find the names of departments that have <b>at least one</b> patient, using <code>EXISTS</code>.' },
+    { title:'Absence Check (NOT EXISTS)', concept:'NOT EXISTS is the opposite of EXISTS. Solve the same "department with no doctors" question once more, this time with a different method than the earlier LEFT JOIN + IS NULL.',
+      task:'Find the department with <b>no</b> doctors, this time using <code>NOT EXISTS</code> (instead of the LEFT JOIN method from levels 21-22).' },
+    { title:'Combining Results (UNION)', concept:'UNION stacks the results of two separate SELECTs into a single list (both queries must have the same number of columns).',
+      task:'Combine the names of doctors and nurses into <b>a single list</b>; the second column should say <code>\'Doctor\'</code> for doctors and <code>\'Nurse\'</code> for nurses (<code>AS role</code>).' },
+    { title:'Final: All in One', concept:'Most real-world queries use JOIN, GROUP BY and ORDER BY together — this last level combines them all.',
+      task:'Calculate each department\'s name and its patient count (<code>AS patient_count</code>); sort the result by patient count from <b>most to fewest</b>, and break ties by department name <b>A to Z</b> (also give the name column the alias <code>AS department</code>).' }
+  ];
+
+  var ALIAS_EN = { hasta_sayisi:'patient_count', bolum_buyuk:'dept_upper', doktor_bilgisi:'doctor_info', yas_grubu:'age_group',
+                   hastalik:'disease', hasta:'patient', doktor:'doctor', bolum:'department', sayi:'cnt', unvan:'role' };
+
+  function levelText(idx){
+    var lv = levels[idx];
+    if(lang === 'en'){
+      var en = LEVELS_EN[idx];
+      var hint = lit(lv.hint).replace(/AS (\w+)/g, function(m, a){ return 'AS ' + (ALIAS_EN[a] || a); });
+      hint = hint.replace(/ORDER BY ([^;]*)/, function(m, body){ return 'ORDER BY ' + body.replace(/\w+/g, function(w){ return ALIAS_EN[w] || w; }); });
+      return { title:en.title, concept:en.concept, task:en.task, hint:hint };
+    }
+    return { title:lv.title, concept:lv.concept, task:lv.task, hint:lit(lv.hint) };
+  }
+
+  /* ================= DURUM ================= */
+  var STORAGE_KEY = 'purple_hearts_hastane_sql_progress_v2';
+  var state = { current: 1, completed: [] };
+  try{
+    var saved = localStorage.getItem(STORAGE_KEY);
+    if(saved){
+      var parsed = JSON.parse(saved);
+      if(parsed && typeof parsed.current === 'number'){ state = parsed; }
+    }
+  }catch(e){ /* localStorage yok, sorun değil */ }
+
+  function saveState(){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){} }
+
+  var drafts = {};
+
+  /* ================= YARDIMCI: sonuç karşılaştırma ================= */
+  function rowsToComparable(rows){
+    return rows.map(function(r){
+      var vals;
+      if(Array.isArray(r)) vals = r;
+      else if(r && typeof r === 'object') vals = Object.keys(r).map(function(k){ return r[k]; });
+      else vals = [r];
+      return JSON.stringify(vals.map(function(v){
+        if(v === null || v === undefined) return '';
+        if(typeof v === 'number') return String(Math.round(v*1e6)/1e6);
+        return String(v);
+      }));
+    });
+  }
+
+  function compareResults(userRows, expectedRows, ordered){
+    var u = rowsToComparable(userRows);
+    var e = rowsToComparable(expectedRows);
+    if(!ordered){ u.sort(); e.sort(); }
+    if(u.length !== e.length) return false;
+    for(var i=0;i<u.length;i++){ if(u[i] !== e[i]) return false; }
+    return true;
+  }
+
+  /* ================= RENDER: rail ================= */
+  function renderRail(){
+    var rail = document.getElementById('rail');
+    rail.innerHTML = '<div class="rail-line"></div>';
+    levels.forEach(function(lv, idx){
+      var n = idx+1;
+      var item = document.createElement('div');
+      var status = state.completed.indexOf(n) > -1 ? 'done' : (n === state.current ? 'current' : (n < state.current ? 'done' : 'locked'));
+      item.className = 'rail-item ' + status;
+      var unlocked = status !== 'locked';
+      var lt = levelText(idx);
+      item.innerHTML = '<div class="rail-dot"></div><div class="rail-label"><span class="lv">' + t('level') + ' ' + n + '</span><span class="lv-title">' + lt.title + '</span><span class="lv-concept">' + lt.concept + '</span></div>';
+      if(unlocked){
+        item.addEventListener('click', function(){ state.current = n; saveState(); renderAll(); });
+      }
+      rail.appendChild(item);
+    });
+  }
+
+  /* ================= RENDER: seviye alanı ================= */
+  function renderLevel(){
+    var area = document.getElementById('levelArea');
+    var n = state.current;
+
+    if(n > levels.length){
+      area.innerHTML = '<div class="win-banner"><h2>' + t('winTitle') + '</h2><p>' + t('winText')(levels.length) + '</p></div>';
+      return;
+    }
+
+    var lv = levels[n-1];
+    var lt = levelText(n-1);
+    var completedNow = state.completed.indexOf(n) > -1;
+
+    var html = '';
+    html += '<div class="task-card">';
+    html += '  <div class="task-eyebrow"><span class="chip">' + t('level') + ' ' + n + ' / ' + levels.length + '</span>' + (completedNow ? '<span class="chip" style="color:var(--pulse); border-color:rgba(55,230,176,0.4);">' + t('completedChip') + '</span>' : '') + '</div>';
+    html += '  <h2>' + lt.title + '</h2>';
+    html += '  <p class="concept-line">' + lt.concept + '</p>';
+    html += '  <p class="task-desc">' + lt.task + '</p>';
+    html += '  <button class="task-hint-toggle" id="hintToggle">' + t('showHint') + '</button>';
+    html += '  <div class="hint-box" id="hintBox">' + escapeHtml(lt.hint) + '</div>';
+    html += '</div>';
+
+    html += '<div class="editor-wrap">';
+    html += '  <div class="editor-label"><span>' + t('yourQuery') + '</span><span style="color:var(--text-muted); font-size:11px;">' + t('keys') + '</span></div>';
+    html += '  <textarea id="sqlInput" spellcheck="false" placeholder="SELECT ...">' + (drafts[n] || '') + '</textarea>';
+    html += '  <div class="editor-actions">';
+    html += '    <button class="btn btn-run" id="runBtn">' + t('run') + '</button>';
+    html += '    <button class="btn btn-next" id="nextBtn" style="display:none;">' + t('next') + '</button>';
+    html += '    <button class="btn btn-ghost" id="clearBtn">' + t('clear') + '</button>';
+    html += '  </div>';
+    html += '  <div class="feedback" id="feedback"></div>';
+    html += '  <div class="results-wrap" id="resultsWrap" style="display:none;"><div class="results-title" id="resultsTitle">' + t('result') + '</div><div class="table-scroll" id="resultsTable"></div></div>';
+    html += '</div>';
+
+    area.innerHTML = html;
+
+    document.getElementById('hintToggle').addEventListener('click', function(){
+      var box = document.getElementById('hintBox');
+      var open = box.classList.toggle('show');
+      this.textContent = open ? t('hideHint') : t('showHint');
+    });
+
+    var textarea = document.getElementById('sqlInput');
+    textarea.addEventListener('input', function(){ drafts[n] = textarea.value; });
+    textarea.addEventListener('keydown', function(e){
+      if(e.key === 'Enter' && (e.ctrlKey || e.metaKey)){ e.preventDefault(); runCurrentQuery(); }
+    });
+
+    document.getElementById('runBtn').addEventListener('click', runCurrentQuery);
+    document.getElementById('clearBtn').addEventListener('click', function(){
+      textarea.value = ''; drafts[n] = ''; textarea.focus();
+    });
+
+    var nextBtn = document.getElementById('nextBtn');
+    if(completedNow){ nextBtn.style.display = 'inline-block'; }
+    nextBtn.addEventListener('click', function(){
+      state.current = Math.min(n+1, levels.length+1);
+      saveState(); renderAll();
+    });
+
+    textarea.focus();
+  }
+
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, function(c){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  }
+
+  function renderResultTable(rows){
+    var wrap = document.getElementById('resultsTable');
+    if(!rows || rows.length === 0){
+      wrap.innerHTML = '<div class="empty-note">' + t('empty') + '</div>';
+      return;
+    }
+    var colSet = {};
+    var cols = [];
+    rows.forEach(function(r){ Object.keys(r).forEach(function(k){ if(!colSet[k]){ colSet[k]=true; cols.push(k); } }); });
+    var h = '<table class="result-table"><thead><tr>';
+    cols.forEach(function(c){ h += '<th>' + escapeHtml(c) + '</th>'; });
+    h += '</tr></thead><tbody>';
+    rows.forEach(function(r){
+      h += '<tr>';
+      cols.forEach(function(c){
+        var v = r[c];
+        h += '<td>' + (v === null || v === undefined ? '<span style="color:var(--text-muted)">null</span>' : escapeHtml(v)) + '</td>';
+      });
+      h += '</tr>';
+    });
+    h += '</tbody></table>';
+    wrap.innerHTML = h;
+  }
+
+  function runCurrentQuery(){
+    var n = state.current;
+    var lv = levels[n-1];
+    var sql = document.getElementById('sqlInput').value.trim();
+    var feedback = document.getElementById('feedback');
+    var resultsWrap = document.getElementById('resultsWrap');
+    feedback.className = 'feedback'; resultsWrap.style.display = 'none';
+
+    if(!sql){
+      feedback.textContent = t('writeFirst');
+      feedback.classList.add('show','bad');
+      return;
+    }
+
+    var rows, expected;
+    try{
+      rows = alasql(sql);
+      if(!Array.isArray(rows)){
+        feedback.textContent = t('notSelect');
+        feedback.classList.add('show','bad');
+        return;
+      }
+    }catch(err){
+      feedback.innerHTML = '<b>' + t('sqlError') + '</b> ' + escapeHtml(err.message || String(err)) + '<br>' + t('fixTry');
+      feedback.classList.add('show','bad');
+      return;
+    }
+
+    try{ expected = alasql(lit(lv.ref)); }catch(err){ expected = []; }
+
+    var match = compareResults(rows, expected, !!lv.ordered);
+
+    resultsWrap.style.display = 'block';
+    renderResultTable(rows);
+
+    if(match){
+      document.getElementById('resultsTitle').textContent = t('resultOk');
+      feedback.innerHTML = t('okMsg');
+      feedback.classList.add('show','ok');
+      if(state.completed.indexOf(n) === -1){ state.completed.push(n); }
+      saveState();
+      renderRail();
+      updateStats();
+      var nextBtn = document.getElementById('nextBtn');
+      if(nextBtn) nextBtn.style.display = 'inline-block';
+      var eyebrow = document.querySelector('.task-eyebrow');
+      if(eyebrow && eyebrow.children.length < 2){
+        var b = document.createElement('span');
+        b.className = 'chip'; b.style.color = 'var(--pulse)'; b.style.borderColor = 'rgba(55,230,176,0.4)';
+        b.textContent = t('completedChip');
+        eyebrow.appendChild(b);
+      }
+    } else {
+      document.getElementById('resultsTitle').textContent = t('resultBad');
+      feedback.innerHTML = t('badMsg');
+      feedback.classList.add('show','bad');
+    }
+  }
+
+  function updateStats(){
+    document.getElementById('statLevel').textContent = Math.min(state.current, levels.length);
+    document.getElementById('statDone').innerHTML = state.completed.length + '<span style="color:var(--text-muted); font-size:14px;">/' + levels.length + '</span>';
+  }
+
+  /* ================= VERİ GÖRÜNTÜLEYİCİ ================= */
+  function renderDataPanel(){
+    var panel = document.getElementById('dataPanel');
+    var html = '';
+    Object.keys(DB).forEach(function(tableName){
+      var rows = DB[tableName];
+      var cols = SCHEMA[tableName];
+      html += '<div class="data-table-block"><h4>' + tableName + ' (' + cols.join(', ') + ')</h4>';
+      html += '<div class="table-scroll"><table class="result-table"><thead><tr>';
+      cols.forEach(function(c){ html += '<th>' + c + '</th>'; });
+      html += '</tr></thead><tbody>';
+      rows.forEach(function(r){
+        html += '<tr>';
+        cols.forEach(function(c){ html += '<td>' + escapeHtml(r[c]) + '</td>'; });
+        html += '</tr>';
+      });
+      html += '</tbody></table></div></div>';
+    });
+    panel.innerHTML = html;
+  }
+
+  document.getElementById('dataToggle').addEventListener('click', function(){
+    this.classList.toggle('open');
+    document.getElementById('dataPanel').classList.toggle('open');
+  });
+
+  document.getElementById('resetBtn').addEventListener('click', function(){
+    if(confirm(t('confirmReset'))){
+      state = { current: 1, completed: [] };
+      drafts = {};
+      saveState();
+      renderAll();
+    }
+  });
+
+  function applyStaticText(){
+    document.documentElement.setAttribute('lang', lang);
+    document.getElementById('brandSub').textContent = t('brandSub');
+    document.getElementById('lblLevel').textContent = t('lblLevel');
+    document.getElementById('lblDone').textContent = t('lblDone');
+    document.getElementById('resetBtn').textContent = t('reset');
+    document.getElementById('dataToggleText').textContent = t('dataToggle');
+    document.getElementById('footerText').textContent = t('footer');
+    document.getElementById('langLabel').textContent = (lang === 'tr') ? 'EN' : 'TR';
+    applyTheme(document.documentElement.getAttribute('data-theme') || 'dark');
+  }
+
+  function renderAll(){ applyStaticText(); renderRail(); renderLevel(); updateStats(); }
+
+  document.getElementById('langBtn').addEventListener('click', function(){
+    lang = (lang === 'tr') ? 'en' : 'tr';
+    try{ localStorage.setItem(LANG_KEY, lang); }catch(e){}
+    setData(lang);
+    renderDataPanel();
+    renderAll();
+  });
+
+  renderDataPanel();
+  renderAll();
+
+})();
+</script>
+</body>
+</html>
